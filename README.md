@@ -26,7 +26,7 @@ qlmanage -h
 项目内草稿：
 
 ```text
-quicklook-preview.sh
+scripts/quicklook-preview.sh
 ```
 
 Codex skill 安装版：
@@ -53,7 +53,21 @@ bash ~/.codex/skills/quicklook-preview/scripts/quicklook-preview.sh \
 
 - `--out`：预览图输出目录，默认是 `actual-effect-screenshots`。
 - `--size`：预览图长边尺寸，默认是 `1400`。
-- 后面的文件路径：要生成预览图的一个或多个本地文件。
+- `--rtf-mode`：RTF 生成模式，默认是 `fullpage`。可选 `fullpage` 或 `quicklook`。
+- 后面的路径：要生成预览图的一个或多个本地文件或文件夹。
+
+RTF 默认使用完整页面渲染：脚本会先用 macOS 自带的 `textutil` 把 RTF 转成临时 HTML，再用本机 Chrome 的 headless 模式截取完整页面，避免 Quick Look 缩略图只截到前半部分。
+
+如果你想要严格的 Quick Look 方形缩略图，可以显式指定：
+
+```bash
+bash ~/.codex/skills/quicklook-preview/scripts/quicklook-preview.sh \
+  --out previews \
+  --rtf-mode quicklook \
+  path/to/file.rtf
+```
+
+RTF 完整页面模式需要本机安装 Google Chrome 或 Chromium。如果浏览器不可用，命令会报错，避免悄悄生成一张被截断的缩略图；需要 Quick Look 缩略图时请显式使用 `--rtf-mode quicklook`。
 
 ## 输出文件名
 
@@ -66,13 +80,13 @@ Quick Look 会把结果写成：
 例如：
 
 ```text
-codex-for-every-role.preview.html
+your_file.preview.html
 ```
 
 会生成：
 
 ```text
-actual-effect-screenshots/codex-for-every-role.preview.html.png
+actual-effect-screenshots/your_file.preview.html.png
 ```
 
 ## 当前项目示例
@@ -80,24 +94,24 @@ actual-effect-screenshots/codex-for-every-role.preview.html.png
 在项目目录中执行：
 
 ```bash
-cd path/to/format-skill
+cd path/to/quicklook-preview-skill
 
 bash ~/.codex/skills/quicklook-preview/scripts/quicklook-preview.sh \
   --out actual-effect-screenshots \
   --size 1400 \
-  codex-for-every-role.preview.html \
+  your_file.preview.html \
   output.md \
-  codex-for-every-role.zhihu.txt \
-  codex-for-every-role.xhs.txt
+  your_file.zhihu.txt \
+  your_file.xhs.txt
 ```
 
 会得到：
 
 ```text
-actual-effect-screenshots/codex-for-every-role.preview.html.png
+actual-effect-screenshots/your_file.preview.html.png
 actual-effect-screenshots/output.md.png
-actual-effect-screenshots/codex-for-every-role.zhihu.txt.png
-actual-effect-screenshots/codex-for-every-role.xhs.txt.png
+actual-effect-screenshots/your_file.zhihu.txt.png
+actual-effect-screenshots/your_file.xhs.txt.png
 ```
 
 ## 单个文件示例
@@ -106,7 +120,7 @@ actual-effect-screenshots/codex-for-every-role.xhs.txt.png
 bash ~/.codex/skills/quicklook-preview/scripts/quicklook-preview.sh \
   --out previews \
   --size 1200 \
-  path/to/format-skill/output.md
+  path/to/quicklook-preview-skill/output.md
 ```
 
 输出：
@@ -115,16 +129,45 @@ bash ~/.codex/skills/quicklook-preview/scripts/quicklook-preview.sh \
 previews/output.md.png
 ```
 
+## 文件夹批量示例
+
+可以直接把文件夹路径放在命令最后。脚本会递归处理文件夹里的普通文件，并在输出目录里保留原文件夹结构：
+
+```bash
+bash ~/.codex/skills/quicklook-preview/scripts/quicklook-preview.sh \
+  --out previews \
+  --size 1200 \
+  path/to/articles
+```
+
+如果文件夹内容是：
+
+```text
+articles/index.html
+articles/output.md
+articles/social/xhs.txt
+```
+
+会生成：
+
+```text
+previews/articles/index.html.png
+previews/articles/output.md.png
+previews/articles/social/xhs.txt.png
+```
+
+目录批量模式会跳过隐藏文件、隐藏子目录和 `.DS_Store`。如果输出目录刚好在输入目录里面，也会自动跳过输出目录，避免重复处理已经生成的 PNG。
+
 ## 重要说明
 
-这些图片是 macOS Quick Look 的真实预览图，不是浏览器截图，也不是知乎或小红书发布后的真实页面截图。
+除默认 RTF 完整页面模式外，这些图片是 macOS Quick Look 的真实预览图；它们不是知乎或小红书发布后的真实页面截图。
 
 不同文件类型的效果会不一样：
 
 - HTML：通常会用 Quick Look / WebKit 预览，接近浏览器中的静态页面效果。
 - Markdown：通常显示为纯文本预览，不一定会渲染成 Markdown 样式。
 - TXT：显示为纯文本预览。
-- RTF：会保留一部分富文本样式。
+- RTF：默认使用完整页面渲染，避免长文档被 Quick Look thumbnail 截断；使用 `--rtf-mode quicklook` 时会回到系统 Quick Look 缩略图效果。
 - PDF：显示 PDF 页面预览。
 
 如果你要展示“文件直接打开或直接预览的真实效果”，用这个脚本是合适的。
@@ -145,7 +188,7 @@ previews/output.md.png
 
 ### 可以批量生成吗？
 
-可以。把多个文件路径放在命令最后即可：
+可以。把多个文件或文件夹路径放在命令最后即可：
 
 ```bash
 bash ~/.codex/skills/quicklook-preview/scripts/quicklook-preview.sh \
@@ -153,7 +196,8 @@ bash ~/.codex/skills/quicklook-preview/scripts/quicklook-preview.sh \
   article.html \
   article.md \
   article.zhihu.txt \
-  article.xhs.txt
+  article.xhs.txt \
+  path/to/articles
 ```
 
 ### 可以不用 Codex 吗？
