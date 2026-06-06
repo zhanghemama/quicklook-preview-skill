@@ -37,6 +37,11 @@ const chrome = spawn(chromePath, [
   "--headless=new",
   "--disable-gpu",
   "--disable-background-networking",
+  "--disable-component-update",
+  "--disable-default-apps",
+  "--disable-dev-shm-usage",
+  "--disable-extensions",
+  "--disable-sync",
   "--hide-scrollbars",
   "--no-default-browser-check",
   "--no-first-run",
@@ -98,7 +103,7 @@ try {
   process.exitCode = 1;
 } finally {
   chrome.kill("SIGTERM");
-  await waitForExit(chrome, 3000).catch(() => {
+  await waitForExit(chrome, 10000).catch(() => {
     chrome.kill("SIGKILL");
   });
   await rm(userDataDir, { recursive: true, force: true }).catch(() => {});
@@ -151,7 +156,7 @@ async function getFreePort() {
 }
 
 async function waitForDevTools(portNumber) {
-  const deadline = Date.now() + 30000;
+  const deadline = Date.now() + 60000;
   let lastError;
 
   while (Date.now() < deadline) {

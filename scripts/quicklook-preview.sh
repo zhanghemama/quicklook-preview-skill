@@ -3,6 +3,7 @@ set -euo pipefail
 
 out_dir="actual-effect-screenshots"
 size="1400"
+html_mode="fullpage"
 rtf_mode="fullpage"
 inputs=()
 source_files=()
@@ -13,11 +14,12 @@ out_abs=""
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 
 usage() {
-  printf 'Usage: %s [--out DIR] [--size PX] [--rtf-mode fullpage|quicklook] FILE_OR_DIR...\n' "$0"
+  printf 'Usage: %s [--out DIR] [--size PX] [--html-mode fullpage|quicklook] [--rtf-mode fullpage|quicklook] FILE_OR_DIR...\n' "$0"
   printf '\n'
   printf 'Files are written as <filename>.png in the output directory.\n'
   printf 'Directories are expanded recursively and mirrored under the output directory.\n'
   printf 'Hidden files and hidden subdirectories are skipped during directory expansion.\n'
+  printf 'HTML files use full-page rendering by default; use --html-mode quicklook for Quick Look thumbnails.\n'
   printf 'RTF files use full-page rendering by default; use --rtf-mode quicklook for Quick Look thumbnails.\n'
 }
 
@@ -83,10 +85,13 @@ file_ext() {
   printf '%s\n' "$ext" | tr '[:upper:]' '[:lower:]'
 }
 
-can_render_rtf_fullpage() {
-  command -v textutil >/dev/null 2>&1 &&
-    command -v node >/dev/null 2>&1 &&
+can_render_html_fullpage() {
+  command -v node >/dev/null 2>&1 &&
     [[ -f "$script_dir/html-fullpage-screenshot.mjs" ]]
+}
+
+can_render_rtf_fullpage() {
+  command -v textutil >/dev/null 2>&1 && can_render_html_fullpage
 }
 
 render_quicklook_thumbnail() {
@@ -94,6 +99,33 @@ render_quicklook_thumbnail() {
   local target_dir="$2"
 
   qlmanage -t -s "$size" -o "$target_dir" "$file"
+}
+
+render_html_fullpage() {
+  local file="$1"
+  local preview="$2"
+  local attempt
+
+  if ! can_render_html_fullpage; then
+    printf 'HTML full-page rendering requires node and scripts/html-fullpage-screenshot.mjs.\n' >&2
+    return 1
+  fi
+
+  for attempt in 1 2 3; do
+    if node "$script_dir/html-fullpage-screenshot.mjs" \
+      --input "$file" \
+      --output "$preview" \
+      --width "$size"; then
+      return 0
+    fi
+
+    if [[ "$attempt" -lt 3 ]]; then
+      printf 'Retrying HTML full-page rendering: %s\n' "$file" >&2
+      sleep 1
+    fi
+  done
+
+  return 1
 }
 
 render_rtf_fullpage() {
@@ -117,10 +149,7 @@ render_rtf_fullpage() {
   fi
 
   for attempt in 1 2; do
-    if node "$script_dir/html-fullpage-screenshot.mjs" \
-      --input "$html_file" \
-      --output "$preview" \
-      --width "$size"; then
+    if render_html_fullpage "$html_file" "$preview"; then
       rm -rf "$tmp_dir"
       return 0
     fi
@@ -142,6 +171,18 @@ render_preview() {
   local ext
 
   ext="$(file_ext "$file")"
+
+  if [[ "$ext" == "html" || "$ext" == "htm" ]]; then
+    if [[ "$html_mode" == "fullpage" ]]; then
+      if ! render_html_fullpage "$file" "$preview"; then
+        printf 'Failed to render full-page HTML preview: %s\n' "$file" >&2
+        printf 'Use --html-mode quicklook if you want the original Quick Look thumbnail behavior.\n' >&2
+        return 1
+      fi
+
+      return
+    fi
+  fi
 
   if [[ "$ext" == "rtf" && "$rtf_mode" == "fullpage" ]]; then
     if ! render_rtf_fullpage "$file" "$preview"; then
@@ -218,6 +259,23 @@ while [[ $# -gt 0 ]]; do
         exit 2
       fi
       size="$2"
+      shift 2
+      ;;
+    --html-mode)
+      if [[ $# -lt 2 ]]; then
+        usage >&2
+        exit 2
+      fi
+      case "$2" in
+        fullpage|quicklook)
+          html_mode="$2"
+          ;;
+        *)
+          printf 'Invalid --html-mode: %s\n' "$2" >&2
+          usage >&2
+          exit 2
+          ;;
+      esac
       shift 2
       ;;
     --rtf-mode)
